@@ -3,100 +3,46 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>3D Rotatable Cube AR</title>
+<title>Paradox Ripple AR Entry</title>
 <style>
-  body, html {
-    margin: 0; padding: 0; height: 100%;
-    overflow: hidden; display: flex;
-    justify-content: center; align-items: center; background: #000;
+  body {
+    margin: 0; padding: 0; min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; background: #111;
+    font-family: 'Segoe UI', Arial, sans-serif;
   }
-  #videoElement {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    object-fit: cover; z-index: 1;
+  h1 {
+    color: #fff; font-size: 2.8rem; margin-top: 40px; margin-bottom: 24px;
+    text-shadow: 0 2px 14px #0af;
   }
-  #scene {
-    width: 200px; height: 200px;
-    position: absolute; top: 50%; left: 50%;
-    transform-style: preserve-3d;
-    transform-origin: center center;
-    transform: translate(-50%, -50%);
-    touch-action: none; z-index: 2;
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 28px; max-width: 600px; width: 90%; margin: auto;
   }
-  .cube {
-    width: 150px; height: 150px;
-    position: relative;
-    transform-style: preserve-3d;
-    transition: transform 0.1s linear;
+  .item {
+    background: rgba(255,255,255,0.12);
+    border-radius: 12px; border: 2px solid #06f;
+    box-shadow: 0 8px 24px #06f3;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 1.2rem; height: 140px; cursor: pointer;
+    transition: transform 0.14s, box-shadow 0.14s;
+    text-decoration: none;
+    font-weight: bold;
+    letter-spacing: 1px;
   }
-  .face {
-    position: absolute;
-    width: 150px; height: 150px;
-    background: rgba(255, 255, 255, 0.3);
-    border: 2px solid white; border-radius: 8px;
-    box-sizing: border-box;
-    display: flex; justify-content: center; align-items: center;
-    font-weight: bold; font-size: 24px; color: white;
+  .item:hover {
+    transform: scale(1.08);
+    box-shadow: 0 12px 32px #09f8;
+    border-color: #0af;
   }
-  .front  { transform: translateZ(75px); }
-  .back   { transform: rotateY(180deg) translateZ(75px); }
-  .right  { transform: rotateY(90deg) translateZ(75px); }
-  .left   { transform: rotateY(-90deg) translateZ(75px); }
-  .top    { transform: rotateX(90deg) translateZ(75px); }
-  .bottom { transform: rotateX(-90deg) translateZ(75px); }
 </style>
 </head>
 <body>
-<video id="videoElement" autoplay playsinline></video>
-<div id="scene">
-  <div class="cube" id="cube">
-    <div class="face front">Front</div>
-    <div class="face back">Back</div>
-    <div class="face right">Right</div>
-    <div class="face left">Left</div>
-    <div class="face top">Top</div>
-    <div class="face bottom">Bottom</div>
-  </div>
+<h1>Paradox Ripple</h1>
+<div class="grid">
+  <!-- Change/duplicate the names and hrefs below as needed -->
+  <a class="item" href="cube1.html">Cube 1</a>
+  <a class="item" href="cube2.html">Cube 2</a>
+  <a class="item" href="cube3.html">Cube 3</a>
 </div>
-<script>
-  const video = document.getElementById('videoElement');
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-    .then((stream) => { video.srcObject = stream; })
-    .catch((error) => { alert('Camera access is required to use this website.'); });
-
-  const scene = document.getElementById('scene');
-  const cube = document.getElementById('cube');
-  let lastX = 0, lastY = 0;
-  let currentX = 0, currentY = 0;
-  let isDragging = false;
-
-  scene.addEventListener('touchstart', function(e) {
-    if (e.touches.length === 1) {
-      isDragging = true;
-      lastX = e.touches[0].clientX;
-      lastY = e.touches[0].clientY;
-    }
-  }, { passive: true });
-
-  scene.addEventListener('touchmove', function(e) {
-    if (isDragging && e.touches.length === 1) {
-      const touch = e.touches[0];
-      let deltaX = touch.clientX - lastX;
-      let deltaY = touch.clientY - lastY;
-      currentY += deltaX * 0.5;
-      currentX -= deltaY * 0.5;
-      currentX = Math.min(Math.max(currentX, -90), 90); // limit vertical rotation
-      cube.style.transform = `rotateX(${currentX}deg) rotateY(${currentY}deg)`;
-      lastX = touch.clientX;
-      lastY = touch.clientY;
-      e.preventDefault();
-    }
-  }, { passive: false });
-
-  scene.addEventListener('touchend', function(e) {
-    if (e.touches.length === 0) {
-      isDragging = false;
-    }
-  }, { passive: true });
-</script>
 </body>
 </html>
