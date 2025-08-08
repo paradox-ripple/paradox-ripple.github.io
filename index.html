@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Basic AR Camera with Zoom & Rotate</title>
+<style>
+  body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; display: flex; justify-content: center; align-items: center; background: #000; }
+  #videoElement {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 1;
+  }
+  #arBox {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 150px;
+    height: 150px;
+    background-color: rgba(255,255,255,0.3);
+    border: 2px solid white;
+    border-radius: 8px;
+    transform-origin: center center;
+    z-index: 2;
+    touch-action: none;
+  }
+</style>
+</head>
+<body>
+<video id="videoElement" autoplay playsinline></video>
+<div id="arBox"></div>
+<script>
+  const video = document.getElementById('videoElement');
+  const arBox = document.getElementById('arBox');
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    .then((stream) => { video.srcObject = stream; })
+    .catch((error) => { alert('Camera access is required to use this website.'); });
+  let scale = 1, rotation = 0, lastDist = 0, lastAngle = 0;
+  function getDist(touches) {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.hypot(dx, dy);
+  }
+  function getAngle(touches) {
+    const dx = touches[1].clientX - touches[0].clientX;
+    const dy = touches[1].clientY - touches[0].clientY;
+    return Math.atan2(dy, dx) * 180 / Math.PI;
+  }
+  arBox.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      lastDist = getDist(e.touches);
+      lastAngle = getAngle(e.touches);
+    }
+  }, { passive: true });
+  arBox.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2) {
+      const curDist = getDist(e.touches), curAngle = getAngle(e.touches);
+      scale += (curDist - lastDist) * 0.01;
+      scale = Math.min(Math.max(0.5, scale), 3);
+      rotation += curAngle - lastAngle;
+      arBox.style.transform = `translate(-50%, -50%) scale(${scale}) rotate(${rotation}deg)`;
+      lastDist = curDist; lastAngle = curAngle;
+    }
+    e.preventDefault();
+  }, { passive: false });
+</script>
+</body>
+</html>
