@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cube AR - Paradox Ripple</title>
+<style>
+  body, html {
+    margin: 0; padding: 0; height: 100%;
+    overflow: hidden; background: #000;
+    font-family: 'Segoe UI', Arial, sans-serif;
+  }
+  #videoElement {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    object-fit: cover; z-index: 1;
+    background: #222;
+  }
+  #scene {
+    width: 240px; height: 320px;
+    position: absolute; left: 50%; top: 55%;
+    transform-style: preserve-3d;
+    transform: translate(-50%, -50%);
+    touch-action: none; z-index: 2;
+  }
+  .cube {
+    width: 180px; height: 180px;
+    position: absolute;
+    top: 120px; left: 30px;
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+  .face {
+    position: absolute;
+    width: 180px; height: 180px;
+    background: rgba(255,255,255,0.16);
+    border: 3px solid #0af;
+    border-radius: 10px;
+    box-shadow: 0 0 26px #09f8;
+    display: flex; justify-content: center; align-items: center;
+    font-size: 20px; color: #0af; font-weight: bold;
+    filter: blur(0.7px);
+    user-select: none;
+    cursor: pointer;
+  }
+  .front  { transform: translateZ(90px); }
+  .back   { transform: rotateY(180deg) translateZ(90px); }
+  .right  { transform: rotateY(90deg) translateZ(90px); }
+  .left   { transform: rotateY(-90deg) translateZ(90px); }
+  .top    { transform: rotateX(90deg) translateZ(90px); }
+  .bottom { transform: rotateX(-90deg) translateZ(90px); }
+
+  /* 3D Text styles */
+  .ripple-text {
+    position: absolute;
+    left: 50%; top: 40px;
+    transform: translateX(-50%) perspective(360px) rotateX(22deg);
+    font-size: 2.2rem;
+    color: #0af;
+    font-weight: bold;
+    text-shadow: 0 4px 16px #0af7, 0 0px 15px #fff8;
+    letter-spacing: 5px;
+    z-index: 9;
+    animation: ripple 2.5s infinite linear;
+    filter: drop-shadow(0 10px 15px #0af8);
+    margin-bottom: 18px;
+    user-select: none;
+    white-space: nowrap;
+  }
+  @keyframes ripple {
+    0%   { transform: translateX(-50%) perspective(360px) rotateX(22deg) scaleY(1.06); }
+    42%  { color: #3af; filter: drop-shadow(0 16px 36px #0ff6);}
+    50%  { transform: translateX(-50%) perspective(360px) rotateX(13deg) scaleY(1.20);}
+    80%  { color: #09f; }
+    100% { transform: translateX(-50%) perspective(360px) rotateX(22deg) scaleY(1.06);}
+  }
+</style>
+</head>
+<body>
+<video id="videoElement" autoplay playsinline></video>
+<div class="ripple-text">Paradox Ripple</div>
+<div id="scene">
+  <div class="cube" id="cube">
+    <div class="face front">Front</div>
+    <div class="face back">Back</div>
+    <div class="face right">Right</div>
+    <div class="face left">Left</div>
+    <div class="face top">Top</div>
+    <div class="face bottom">Bottom</div>
+  </div>
+</div>
+<script>
+  const video = document.getElementById('videoElement');
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    .then((stream) => { video.srcObject = stream; })
+    .catch((error) => {
+      alert('Camera access failed: ' + error.message);
+    });
+
+  // Cube transform params
+  let lastX = 0, lastY = 0, startX = 0, startY = 0;
+  let currentX = -24, currentY = 37, scale = 1, startDist = 0;
+  let dragging = false, moving = false;
+  const cube = document.getElementById('cube');
+  const scene = document.getElementById('scene');
+  let posX = 0, posY = 0, dragStartX = 0, dragStartY = 0;
+
+  scene.addEventListener('touchstart', function(e) {
+    if (e.touches.length === 1) {
+      // Drag cube container
+      moving = true;
+      dragStartX = e.touches[0].clientX - posX;
+      dragStartY = e.touches[0].clientY - posY;
+    } else if (e.touches.length === 2) {
+      // Pinch zoom start
+      let dx = e.touches[0].clientX - e.touches[1].clientX;
+      let dy = e.touches[0].clientY - e.touches[1].clientY;
+      startDist = Math.hypot(dx, dy) / scale;
+      dragging = true;
+      lastX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      lastY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    }
+  }, { passive: false });
+
+  scene.addEventListener('touchmove', function(e) {
+    if (dragging && e.touches.length === 2) {
+      // Pinch to scale
+      let dx = e.touches[0].clientX - e.touches[1].clientX;
+      let dy = e.touches[0].clientY - e.touches[1].clientY;
+      let newDist = Math.hypot(dx, dy);
+      let newScale = newDist / startDist;
+      scale = Math.max(0.35, Math.min(2.29, newScale));
+      // Rotate by midpoint drag
+      let curX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      let curY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      currentY += (curX - lastX) * 0.5;
+      currentX -= (curY - lastY) * 0.5;
+      currentX = Math.min(Math.max(currentX, -125), 125);
+      cube.style.transform = `scale(${scale}) rotateX(${currentX}deg) rotateY(${currentY}deg)`;
+      lastX = curX;
+      lastY = curY;
+      e.preventDefault();
+    }
+    if (moving && e.touches.length === 1) {
+      // Drag cube position
+      posX = e.touches[0].clientX - dragStartX;
+      posY = e.touches[0].clientY - dragStartY;
+      scene.style.left = `calc(50% + ${posX}px)`;
+      scene.style.top = `calc(55% + ${posY}px)`;
+      // Maintain cube transform
+      cube.style.transform = `scale(${scale}) rotateX(${currentX}deg) rotateY(${currentY}deg)`;
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  scene.addEventListener('touchend', function(e) {
+    if (e.touches.length === 0) {
+      dragging = false;
+      moving = false;
+    }
+  }, { passive: false });
+
+  // Initial cube transform
+  cube.style.transform = `scale(${scale}) rotateX(${currentX}deg) rotateY(${currentY}deg)`;
+</script>
+</body>
+</html>
