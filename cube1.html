@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Cube with Camera (Optional)</title>
+<title>Cube with Camera and Fallback</title>
 <style>
     body {
         margin: 0;
@@ -19,9 +19,13 @@
         height: 100%;
         object-fit: cover;
         background: #222; /* fallback color when no video */
+        display: none;
     }
     canvas {
         display: block;
+        position: fixed;
+        top: 0; left: 0;
+        z-index: 0;
     }
 </style>
 </head>
@@ -38,20 +42,33 @@
     // Try camera feed
     let cameraAvailable = false;
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         video.srcObject = stream;
+        video.style.display = "block";  // Show video only once stream is active
         cameraAvailable = true;
     } catch (err) {
         console.warn("Camera not available:", err);
+        alert("Camera is not available or permission denied. Showing 3D content without camera feed.");
     }
 
-    // THREE.js scene
+    // THREE.js scene setup
     const scene = new THREE.Scene();
+
+    // Background plane to improve cube visibility if no video
+    const planeGeometry = new THREE.PlaneGeometry(10, 10);
+    const planeMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
+    const backgroundPlane = new THREE.Mesh(planeGeometry, planeMaterial);
+    backgroundPlane.position.z = -5;  // Behind cube
+    scene.add(backgroundPlane);
+
+    // Camera
     const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 1000);
     camera.position.z = 3;
 
+    // Renderer with dark background color instead of transparent
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x222222, 1); // Dark gray background
     document.body.appendChild(renderer.domElement);
 
     // Cube
@@ -63,14 +80,14 @@
     // Text
     const fontLoader = new THREE.FontLoader();
     fontLoader.load("https://threejs.org/examples/fonts/helvetiker_regular.typeface.json", (font) => {
-        const textGeo = new THREE.TextGeometry("Hello!", {
+        const textGeo = new THREE.TextGeometry("Paradox Ripple", {
             font: font,
-            size: 0.3,
+            size: 0.4,
             height: 0.05
         });
-        const textMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const textMat = new THREE.MeshBasicMaterial({ color: 0x0af });
         const textMesh = new THREE.Mesh(textGeo, textMat);
-        textMesh.position.set(-0.7, -1, 0);
+        textMesh.position.set(-1.5, -1.5, 0);
         scene.add(textMesh);
     });
 
@@ -79,13 +96,13 @@
     light.position.set(5, 5, 5);
     scene.add(light);
 
-    // Controls (no zoom, custom pinch/wheel zoom)
+    // Controls setup (orbit controls with disabled zoom since we add manual pinch zoom)
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = false;
     controls.enablePan = true;
     controls.enableZoom = false;
 
-    // Pinch zoom vars
+    // Pinch zoom variables
     let touchStartDistance = 0;
     let startZoom = camera.zoom;
 
@@ -121,7 +138,7 @@
             const midPoint = getMidPoint(e.touches[0], e.touches[1]);
             const worldBefore = screenToWorld(midPoint.x, midPoint.y);
 
-            camera.zoom = startZoom * scaleFactor;
+            camera.zoom = THREE.MathUtils.clamp(startZoom * scaleFactor, 0.5, 3);
             camera.updateProjectionMatrix();
 
             const worldAfter = screenToWorld(midPoint.x, midPoint.y);
@@ -133,7 +150,7 @@
     renderer.domElement.addEventListener("wheel", (e) => {
         const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
         const worldBefore = screenToWorld(e.clientX, e.clientY);
-        camera.zoom *= zoomFactor;
+        camera.zoom = THREE.MathUtils.clamp(camera.zoom * zoomFactor, 0.5, 3);
         camera.updateProjectionMatrix();
         const worldAfter = screenToWorld(e.clientX, e.clientY);
         camera.position.add(worldBefore.sub(worldAfter));
@@ -151,6 +168,7 @@
         requestAnimationFrame(animate);
         cube.rotation.x += 0.01;
         cube.rotation.y += 0.01;
+        controls.update();
         renderer.render(scene, camera);
     }
     animate();
