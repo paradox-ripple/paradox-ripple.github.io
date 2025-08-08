@@ -2,122 +2,226 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>3D Bulb AR - Paradox Ripple</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>01</title>
   <style>
-    body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', Arial, sans-serif; }
-    #video { position: fixed; top: 0; left: 0; z-index: -1; width: 100%; height: 100%; object-fit: cover; display: none; }
+    :root { --accent:#0af; --text:#e6f3ff; }
+    html, body {
+      margin:0; height:100%; overflow:hidden; background:#000; font-family:Segoe UI, Roboto, Arial, sans-serif; color:var(--text);
+    }
+    /* Camera video background */
+    #videoElement {
+      position:fixed; inset:0; width:100%; height:100%;
+      object-fit:cover; background:#222; z-index:0; display:none;
+    }
+    /* Top animated title */
+    .ripple-text {
+      position:fixed; top:18px; left:50%; transform:translateX(-50%) perspective(360px) rotateX(16deg);
+      font-size:clamp(18px,5vw,32px); color:var(--accent); font-weight:800; letter-spacing:4px;
+      text-shadow:0 3px 12px #00aaffaa, 0 0 18px #66ccff66; user-select:none; white-space:nowrap; z-index:3;
+      animation:ripple 2.5s infinite linear;
+    }
+    @keyframes ripple {
+      0%{transform:translateX(-50%) perspective(360px) rotateX(16deg) scaleY(1.04);}
+      45%{color:#3af; filter:drop-shadow(0 16px 36px #0ff6);}
+      50%{transform:translateX(-50%) perspective(360px) rotateX(10deg) scaleY(1.18);}
+      100%{transform:translateX(-50%) perspective(360px) rotateX(16deg) scaleY(1.04);}
+    }
+    /* Three.js canvas container */
+    #threeContainer { position:fixed; inset:0; z-index:2; touch-action:none; }
+    /* Start/Reset buttons + fallback ribbon */
+    .ui {
+      position:fixed; left:50%; bottom:18px; transform:translateX(-50%); display:flex; gap:10px; z-index:3;
+      align-items:center; flex-wrap:wrap; justify-content:center; max-width:calc(100% - 24px);
+    }
+    button {
+      background:var(--accent); color:#001822; border:none; border-radius:10px; padding:10px 14px; font-weight:700;
+      box-shadow:0 6px 24px #0008; cursor:pointer;
+    }
+    .ribbon {
+      background:#ffffff14; border:1px solid #ffffff33; color:var(--text); padding:10px 14px; border-radius:10px;
+      backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); font-size:14px; box-shadow:0 6px 24px #00000055;
+      line-height:1.35; display:none;
+    }
   </style>
 </head>
 <body>
-  <video id="video" autoplay muted playsinline></video>
+  <div class="ripple-text">PARADOX RIPPLE</div>
+  <video id="videoElement" autoplay playsinline></video>
+  <div id="threeContainer"></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/GLTFLoader.js"></script>
+  <div class="ui">
+    <button id="startBtn">Start Camera</button>
+    <button id="resetBtn">Reset View</button>
+    <div id="fallback" class="ribbon">Camera blocked or unavailable. Showing 3D content without camera.</div>
+  </div>
 
-  <script>
-    (async function() {
-      const video = document.getElementById("video");
+  <script type="module">
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+    import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+    import { FontLoader }   from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/FontLoader.js';
+    import { TextGeometry } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/geometries/TextGeometry.js';
+
+    const video = document.getElementById('videoElement');
+    const startBtn = document.getElementById('startBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const fallback = document.getElementById('fallback');
+    const container = document.getElementById('threeContainer');
+
+    // Try camera only after user gesture (required by browsers)
+    async function startCamera() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' }, audio:false });
         video.srcObject = stream;
-        video.style.display = "block";
-      } catch {
-        video.style.display = "none";
+        video.style.display = 'block';
+        fallback.style.display = 'none';
+        startBtn.style.display = 'none';
+      } catch (e) {
+        console.warn('Camera not available:', e);
+        fallback.style.display = 'block';
       }
+    }
+    startBtn.addEventListener('click', startCamera);
 
-      const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 1000);
-      camera.position.z = 3;
+    // Three.js setup
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.01, 1000);
+    camera.position.set(0, 0, 4.5);
 
-      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      document.body.appendChild(renderer.domElement);
+    const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x000000, 0); // transparent over video
+    container.appendChild(renderer.domElement);
 
-      const controls = new THREE.OrbitControls(camera, renderer.domElement);
-      controls.enablePan = true;
-      controls.enableZoom = false;
+    // Background plane so cube is visible even without video
+    const bgPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(50, 50),
+      new THREE.MeshBasicMaterial({ color: 0x101218, opacity: 0.9, transparent: true })
+    );
+    bgPlane.position.z = -10;
+    scene.add(bgPlane);
 
-      let bulb;
-      const loader = new THREE.GLTFLoader();
-      loader.load(
-        'https://models.babylonjs.com/boombox.glb', // sample model; replace with actual light bulb model URL
-        gltf => {
-          bulb = gltf.scene;
-          bulb.scale.set(1, 1, 1);
-          scene.add(bulb);
-        },
-        undefined,
-        error => console.error('Model loading failed', error)
-      );
+    // Cube
+    const cube = new THREE.Mesh(
+      new THREE.BoxGeometry(1.2, 1.2, 1.2),
+      new THREE.MeshNormalMaterial()
+    );
+    scene.add(cube);
 
-      let touchStartDistance = 0;
-      let startZoom = camera.zoom;
+    // Lights for text
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+    dir.position.set(3, 5, 4);
+    scene.add(dir);
 
-      function getDistance(t1, t2) {
-        return Math.hypot(t1.pageX - t2.pageX, t1.pageY - t2.pageY);
-      }
-      function getMidPoint(t1, t2) {
-        return { x: (t1.pageX + t2.pageX) / 2, y: (t1.pageY + t2.pageY) / 2 };
-      }
-      function screenToWorld(x, y) {
-        const vec = new THREE.Vector3(
-          (x / window.innerWidth) * 2 - 1,
-          -(y / window.innerHeight) * 2 + 1,
-          0.5
-        );
-        vec.unproject(camera);
-        return vec;
-      }
-
-      renderer.domElement.addEventListener("touchstart", e => {
-        if (e.touches.length === 2) {
-          touchStartDistance = getDistance(e.touches[0], e.touches[1]);
-          startZoom = camera.zoom;
-        }
-      }, { passive: true });
-
-      renderer.domElement.addEventListener("touchmove", e => {
-        if (e.touches.length === 2) {
-          e.preventDefault();
-          const distance = getDistance(e.touches[0], e.touches[1]);
-          const scaleFactor = distance / touchStartDistance;
-          const mid = getMidPoint(e.touches[0], e.touches[1]);
-          const before = screenToWorld(mid.x, mid.y);
-
-          camera.zoom = startZoom * scaleFactor;
-          camera.updateProjectionMatrix();
-
-          const after = screenToWorld(mid.x, mid.y);
-          camera.position.add(before.sub(after));
-        }
-      }, { passive: false });
-
-      renderer.domElement.addEventListener("wheel", e => {
-        const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
-        const before = screenToWorld(e.clientX, e.clientY);
-
-        camera.zoom *= zoomFactor;
-        camera.updateProjectionMatrix();
-
-        const after = screenToWorld(e.clientX, e.clientY);
-        camera.position.add(before.sub(after));
-      }, { passive: true });
-
-      window.addEventListener("resize", () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
+    // 3D text: Paradox Ripple (in-scene)
+    (async () => {
+      const font = await new Promise((resolve, reject) => {
+        const loader = new FontLoader();
+        loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', resolve, undefined, reject);
       });
-
-      function animate() {
-        requestAnimationFrame(animate);
-        if (bulb) bulb.rotation.y += 0.005;
-        renderer.render(scene, camera);
-      }
-      animate();
+      const textGeo = new TextGeometry('Paradox Ripple', {
+        font,
+        size: 0.28,
+        height: 0.06,
+        curveSegments: 8,
+        bevelEnabled: true,
+        bevelThickness: 0.01,
+        bevelSize: 0.008,
+        bevelOffset: 0,
+        bevelSegments: 3
+      });
+      textGeo.computeBoundingBox();
+      textGeo.center();
+      const textMesh = new THREE.Mesh(
+        textGeo,
+        new THREE.MeshStandardMaterial({
+          color: 0x00aaff, metalness: 0.2, roughness: 0.25, emissive: 0x003355, emissiveIntensity: 0.4
+        })
+      );
+      textMesh.position.set(0, 1.35, 0);
+      textMesh.rotation.x = -0.18;
+      scene.add(textMesh);
     })();
+
+    // Controls (orbit) with custom pinch zoom that anchors at gesture midpoint
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.enablePan = true;
+    controls.enableZoom = false;
+
+    // Pinch/wheel zoom
+    let touchStartDistance = 0;
+    let startZoom = camera.zoom;
+
+    function dist(t1, t2) { return Math.hypot(t1.pageX - t2.pageX, t1.pageY - t2.pageY); }
+    function mid(t1, t2) { return { x:(t1.pageX + t2.pageX)/2, y:(t1.pageY + t2.pageY)/2 }; }
+    function screenToWorld(x, y, zNDC=0.5) {
+      const v = new THREE.Vector3((x/window.innerWidth)*2-1, -(y/window.innerHeight)*2+1, zNDC);
+      v.unproject(camera);
+      return v;
+    }
+
+    renderer.domElement.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        touchStartDistance = dist(e.touches[0], e.touches[1]);
+        startZoom = camera.zoom;
+      }
+    }, { passive:true });
+
+    renderer.domElement.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const d = dist(e.touches[0], e.touches[1]);
+        const scale = d / touchStartDistance;
+
+        const m = mid(e.touches[0], e.touches[1]);
+        const worldBefore = screenToWorld(m.x, m.y);
+
+        camera.zoom = THREE.MathUtils.clamp(startZoom * scale, 0.5, 3.5);
+        camera.updateProjectionMatrix();
+
+        const worldAfter = screenToWorld(m.x, m.y);
+        camera.position.add(worldBefore.sub(worldAfter));
+      }
+    }, { passive:false });
+
+    renderer.domElement.addEventListener('wheel', (e) => {
+      const zf = e.deltaY < 0 ? 1.1 : 0.9;
+      const worldBefore = screenToWorld(e.clientX, e.clientY);
+      camera.zoom = THREE.MathUtils.clamp(camera.zoom * zf, 0.5, 3.5);
+      camera.updateProjectionMatrix();
+      const worldAfter = screenToWorld(e.clientX, e.clientY);
+      camera.position.add(worldBefore.sub(worldAfter));
+    }, { passive:true });
+
+    // Reset view
+    resetBtn.addEventListener('click', () => {
+      camera.position.set(0, 0, 4.5);
+      camera.zoom = 1;
+      camera.updateProjectionMatrix();
+      controls.reset();
+    });
+
+    // Resize
+    window.addEventListener('resize', () => {
+      const w = window.innerWidth, h = window.innerHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    });
+
+    // Animate
+    function animate() {
+      requestAnimationFrame(animate);
+      cube.rotation.x += 0.01;
+      cube.rotation.y += 0.013;
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
   </script>
 </body>
 </html>
