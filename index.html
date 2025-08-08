@@ -3,67 +3,100 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Basic AR Camera with Zoom & Rotate</title>
+<title>3D Rotatable Cube AR</title>
 <style>
-  body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; display: flex; justify-content: center; align-items: center; background: #000; }
+  body, html {
+    margin: 0; padding: 0; height: 100%;
+    overflow: hidden; display: flex;
+    justify-content: center; align-items: center; background: #000;
+  }
   #videoElement {
-    position: fixed;
-    top: 0; left: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    z-index: 1;
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    object-fit: cover; z-index: 1;
   }
-  #arBox {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 150px;
-    height: 150px;
-    background-color: rgba(255,255,255,0.3);
-    border: 2px solid white;
-    border-radius: 8px;
+  #scene {
+    width: 200px; height: 200px;
+    position: absolute; top: 50%; left: 50%;
+    transform-style: preserve-3d;
     transform-origin: center center;
-    z-index: 2;
-    touch-action: none;
+    transform: translate(-50%, -50%);
+    touch-action: none; z-index: 2;
   }
+  .cube {
+    width: 150px; height: 150px;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.1s linear;
+  }
+  .face {
+    position: absolute;
+    width: 150px; height: 150px;
+    background: rgba(255, 255, 255, 0.3);
+    border: 2px solid white; border-radius: 8px;
+    box-sizing: border-box;
+    display: flex; justify-content: center; align-items: center;
+    font-weight: bold; font-size: 24px; color: white;
+  }
+  .front  { transform: translateZ(75px); }
+  .back   { transform: rotateY(180deg) translateZ(75px); }
+  .right  { transform: rotateY(90deg) translateZ(75px); }
+  .left   { transform: rotateY(-90deg) translateZ(75px); }
+  .top    { transform: rotateX(90deg) translateZ(75px); }
+  .bottom { transform: rotateX(-90deg) translateZ(75px); }
 </style>
 </head>
 <body>
 <video id="videoElement" autoplay playsinline></video>
-<div id="arBox"></div>
+<div id="scene">
+  <div class="cube" id="cube">
+    <div class="face front">Front</div>
+    <div class="face back">Back</div>
+    <div class="face right">Right</div>
+    <div class="face left">Left</div>
+    <div class="face top">Top</div>
+    <div class="face bottom">Bottom</div>
+  </div>
+</div>
 <script>
-let posX = 0, posY = 0, startX = 0, startY = 0, dragging = false;
+  const video = document.getElementById('videoElement');
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    .then((stream) => { video.srcObject = stream; })
+    .catch((error) => { alert('Camera access is required to use this website.'); });
 
-arBox.addEventListener('touchstart', function(e) {
-  if (e.touches.length === 1) {
-    dragging = true;
-    startX = e.touches[0].clientX - posX;
-    startY = e.touches[0].clientY - posY;
-  } else {
-    dragging = false;
-    // existing two-finger logic stays here...
-  }
-}, { passive: false });
+  const scene = document.getElementById('scene');
+  const cube = document.getElementById('cube');
+  let lastX = 0, lastY = 0;
+  let currentX = 0, currentY = 0;
+  let isDragging = false;
 
-arBox.addEventListener('touchmove', function(e) {
-  if (dragging && e.touches.length === 1) {
-    posX = e.touches[0].clientX - startX;
-    posY = e.touches[0].clientY - startY;
-    arBox.style.left = `calc(50% + ${posX}px)`;
-    arBox.style.top = `calc(50% + ${posY}px)`;
-    arBox.style.transform = `translate(-50%, -50%) scale(${scale}) rotate(${rotation}deg)`;
-    e.preventDefault();
-  }
-  // existing two-finger logic stays here...
-}, { passive: false });
+  scene.addEventListener('touchstart', function(e) {
+    if (e.touches.length === 1) {
+      isDragging = true;
+      lastX = e.touches[0].clientX;
+      lastY = e.touches[0].clientY;
+    }
+  }, { passive: true });
 
-arBox.addEventListener('touchend', function(e) {
-  if (e.touches.length === 0) {
-    dragging = false;
-  }
-}, { passive: false });
+  scene.addEventListener('touchmove', function(e) {
+    if (isDragging && e.touches.length === 1) {
+      const touch = e.touches[0];
+      let deltaX = touch.clientX - lastX;
+      let deltaY = touch.clientY - lastY;
+      currentY += deltaX * 0.5;
+      currentX -= deltaY * 0.5;
+      currentX = Math.min(Math.max(currentX, -90), 90); // limit vertical rotation
+      cube.style.transform = `rotateX(${currentX}deg) rotateY(${currentY}deg)`;
+      lastX = touch.clientX;
+      lastY = touch.clientY;
+      e.preventDefault();
+    }
+  }, { passive: false });
 
+  scene.addEventListener('touchend', function(e) {
+    if (e.touches.length === 0) {
+      isDragging = false;
+    }
+  }, { passive: true });
 </script>
 </body>
 </html>
