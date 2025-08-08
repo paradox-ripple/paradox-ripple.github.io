@@ -3,33 +3,85 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Cube with Camera and Fallback</title>
+<title>Cube with Camera and Clear Fallback</title>
 <style>
-    body {
-        margin: 0;
-        overflow: hidden;
-        background: #222; /* fallback color */
-    }
-    #video {
-        position: fixed;
-        top: 0;
-        left: 0;
-        z-index: -1;
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        background: #222; /* fallback color when no video */
-        display: none;
-    }
-    canvas {
-        display: block;
-        position: fixed;
-        top: 0; left: 0;
-        z-index: 0;
-    }
+  :root {
+    --bg1: #2b2f3a;
+    --bg2: #3a3f4b;
+    --accent: #0af;
+    --text: #e6f3ff;
+  }
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: linear-gradient(135deg, var(--bg1), var(--bg2));
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    color: var(--text);
+  }
+  /* Camera video behind canvas (only shown if stream succeeds) */
+  #video {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 0;
+    display: none;
+    background: #000;
+  }
+  /* WebGL canvas sits above video (always visible) */
+  canvas {
+    position: fixed;
+    inset: 0;
+    display: block;
+    z-index: 1;
+  }
+  /* Top banner text */
+  .banner {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%) perspective(360px) rotateX(14deg);
+    font-weight: 800;
+    letter-spacing: 4px;
+    color: var(--accent);
+    text-shadow: 0 3px 12px #00aaffaa, 0 0 18px #66ccff66;
+    z-index: 3;
+    user-select: none;
+    white-space: nowrap;
+    font-size: clamp(18px, 5vw, 32px);
+    pointer-events: none;
+  }
+  /* Fallback overlay when camera is unavailable */
+  .fallback {
+    position: fixed;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    z-index: 3;
+    background: #ffffff14;
+    border: 1px solid #ffffff33;
+    color: var(--text);
+    padding: 10px 14px;
+    border-radius: 10px;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    font-size: 14px;
+    box-shadow: 0 6px 24px #00000055;
+    max-width: calc(100% - 24px);
+    text-align: center;
+    line-height: 1.35;
+  }
+  .fallback b { color: var(--accent); }
 </style>
 </head>
 <body>
+<div class="banner">PARADOX RIPPLE</div>
+<div id="fallback" class="fallback" style="display:none;">
+  Camera not available or permission denied. Rendering 3D content with a visible background.<br/>
+  For camera access, use HTTPS or localhost and allow permissions.
+</div>
 <video id="video" autoplay muted playsinline></video>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
@@ -37,141 +89,167 @@
 
 <script>
 (async function() {
-    const video = document.getElementById("video");
+  const video = document.getElementById('video');
+  const fallback = document.getElementById('fallback');
 
-    // Try camera feed
-    let cameraAvailable = false;
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        video.srcObject = stream;
-        video.style.display = "block";  // Show video only once stream is active
-        cameraAvailable = true;
-    } catch (err) {
-        console.warn("Camera not available:", err);
-        alert("Camera is not available or permission denied. Showing 3D content without camera feed.");
-    }
+  // Try to start camera (will work only on HTTPS/localhost and with user permission)
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+    video.srcObject = stream;
+    video.style.display = 'block';
+    // No fallback text if camera works
+  } catch (err) {
+    // Show fallback message but DO NOT alert (avoids blocking UI)
+    console.warn('Camera not available:', err);
+    fallback.style.display = 'block';
+  }
 
-    // THREE.js scene setup
-    const scene = new THREE.Scene();
+  // THREE.js setup
+  const scene = new THREE.Scene();
 
-    // Background plane to improve cube visibility if no video
-    const planeGeometry = new THREE.PlaneGeometry(10, 10);
-    const planeMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
-    const backgroundPlane = new THREE.Mesh(planeGeometry, planeMaterial);
-    backgroundPlane.position.z = -5;  // Behind cube
-    scene.add(backgroundPlane);
+  // Camera
+  const camera = new THREE.PerspectiveCamera(
+    70,
+    window.innerWidth / window.innerHeight,
+    0.01,
+    1000
+  );
+  camera.position.set(0, 0, 3);
 
-    // Camera
-    const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 1000);
-    camera.position.z = 3;
+  // Renderer
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  // Bright, visible gradient-like background using linear fog + clear color
+  renderer.setClearColor(0x2f3441, 1);
+  document.body.appendChild(renderer.domElement);
 
-    // Renderer with dark background color instead of transparent
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setClearColor(0x222222, 1); // Dark gray background
-    document.body.appendChild(renderer.domElement);
+  // Add a soft ambient light and a directional light so content pops
+  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+  const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+  dir.position.set(3, 5, 4);
+  scene.add(dir);
 
-    // Cube
-    const geometry = new THREE.BoxGeometry();
-    const material = new THREE.MeshNormalMaterial();
-    const cube = new THREE.Mesh(geometry, material);
-    scene.add(cube);
+  // Subtle background plane for fallback visibility
+  const planeGeo = new THREE.PlaneGeometry(50, 50);
+  const planeMat = new THREE.MeshBasicMaterial({ color: 0x3a4050 });
+  const bgPlane = new THREE.Mesh(planeGeo, planeMat);
+  bgPlane.position.z = -10;
+  scene.add(bgPlane);
 
-    // Text
-    const fontLoader = new THREE.FontLoader();
-    fontLoader.load("https://threejs.org/examples/fonts/helvetiker_regular.typeface.json", (font) => {
-        const textGeo = new THREE.TextGeometry("Paradox Ripple", {
-            font: font,
-            size: 0.4,
-            height: 0.05
-        });
-        const textMat = new THREE.MeshBasicMaterial({ color: 0x0af });
-        const textMesh = new THREE.Mesh(textGeo, textMat);
-        textMesh.position.set(-1.5, -1.5, 0);
-        scene.add(textMesh);
+  // Cube
+  const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
+  const cubeMat = new THREE.MeshNormalMaterial({ flatShading: false });
+  const cube = new THREE.Mesh(cubeGeo, cubeMat);
+  scene.add(cube);
+
+  // 3D Text: Paradox Ripple (extruded)
+  // Load font, then create text mesh
+  const loader = new THREE.FontLoader();
+  loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', (font) => {
+    const textGeo = new THREE.TextGeometry('Paradox Ripple', {
+      font,
+      size: 0.28,
+      height: 0.06,
+      curveSegments: 8,
+      bevelEnabled: true,
+      bevelThickness: 0.01,
+      bevelSize: 0.008,
+      bevelOffset: 0,
+      bevelSegments: 3
     });
-
-    // Lighting
-    const light = new THREE.DirectionalLight(0xffffff, 1);
-    light.position.set(5, 5, 5);
-    scene.add(light);
-
-    // Controls setup (orbit controls with disabled zoom since we add manual pinch zoom)
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = false;
-    controls.enablePan = true;
-    controls.enableZoom = false;
-
-    // Pinch zoom variables
-    let touchStartDistance = 0;
-    let startZoom = camera.zoom;
-
-    function getDistance(t1, t2) {
-        return Math.hypot(t1.pageX - t2.pageX, t1.pageY - t2.pageY);
-    }
-    function getMidPoint(t1, t2) {
-        return { x: (t1.pageX + t2.pageX) / 2, y: (t1.pageY + t2.pageY) / 2 };
-    }
-    function screenToWorld(x, y) {
-        const vec = new THREE.Vector3(
-            (x / window.innerWidth) * 2 - 1,
-            -(y / window.innerHeight) * 2 + 1,
-            0.5
-        );
-        vec.unproject(camera);
-        return vec;
-    }
-
-    renderer.domElement.addEventListener("touchstart", (e) => {
-        if (e.touches.length === 2) {
-            touchStartDistance = getDistance(e.touches[0], e.touches[1]);
-            startZoom = camera.zoom;
-        }
-    }, { passive: true });
-
-    renderer.domElement.addEventListener("touchmove", (e) => {
-        if (e.touches.length === 2) {
-            e.preventDefault();
-            const distance = getDistance(e.touches[0], e.touches[1]);
-            const scaleFactor = distance / touchStartDistance;
-
-            const midPoint = getMidPoint(e.touches[0], e.touches[1]);
-            const worldBefore = screenToWorld(midPoint.x, midPoint.y);
-
-            camera.zoom = THREE.MathUtils.clamp(startZoom * scaleFactor, 0.5, 3);
-            camera.updateProjectionMatrix();
-
-            const worldAfter = screenToWorld(midPoint.x, midPoint.y);
-            camera.position.add(worldBefore.sub(worldAfter));
-        }
-    }, { passive: false });
-
-    // Mouse wheel zoom
-    renderer.domElement.addEventListener("wheel", (e) => {
-        const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
-        const worldBefore = screenToWorld(e.clientX, e.clientY);
-        camera.zoom = THREE.MathUtils.clamp(camera.zoom * zoomFactor, 0.5, 3);
-        camera.updateProjectionMatrix();
-        const worldAfter = screenToWorld(e.clientX, e.clientY);
-        camera.position.add(worldBefore.sub(worldAfter));
-    }, { passive: true });
-
-    // Resize handler
-    window.addEventListener("resize", () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
+    textGeo.computeBoundingBox();
+    textGeo.center();
+    const textMat = new THREE.MeshStandardMaterial({
+      color: 0x00aaff,
+      metalness: 0.2,
+      roughness: 0.25,
+      emissive: 0x003355,
+      emissiveIntensity: 0.4
     });
+    const textMesh = new THREE.Mesh(textGeo, textMat);
+    textMesh.position.set(0, 1.1, 0);
+    textMesh.rotation.x = -0.18; // slight tilt
+    scene.add(textMesh);
+  });
 
-    // Animation loop
-    function animate() {
-        requestAnimationFrame(animate);
-        cube.rotation.x += 0.01;
-        cube.rotation.y += 0.01;
-        controls.update();
-        renderer.render(scene, camera);
+  // Orbit controls with custom pinch/wheel zoom
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.enablePan = true;
+  controls.enableZoom = false; // we manage zoom to anchor at pointer
+
+  // Pinch zoom
+  let touchStartDistance = 0;
+  let startZoom = camera.zoom;
+
+  function getDistance(t1, t2) {
+    return Math.hypot(t1.pageX - t2.pageX, t1.pageY - t2.pageY);
+  }
+  function getMidPoint(t1, t2) {
+    return { x: (t1.pageX + t2.pageX) / 2, y: (t1.pageY + t2.pageY) / 2 };
+  }
+  function screenToWorld(x, y, zNDC = 0.5) {
+    const vec = new THREE.Vector3(
+      (x / window.innerWidth) * 2 - 1,
+      -(y / window.innerHeight) * 2 + 1,
+      zNDC
+    );
+    vec.unproject(camera);
+    return vec;
+  }
+
+  renderer.domElement.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      touchStartDistance = getDistance(e.touches[0], e.touches[1]);
+      startZoom = camera.zoom;
     }
-    animate();
+  }, { passive: true });
+
+  renderer.domElement.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const distance = getDistance(e.touches[0], e.touches[1]);
+      const scaleFactor = distance / touchStartDistance;
+
+      const mid = getMidPoint(e.touches[0], e.touches[1]);
+      const worldBefore = screenToWorld(mid.x, mid.y);
+
+      camera.zoom = THREE.MathUtils.clamp(startZoom * scaleFactor, 0.5, 3.5);
+      camera.updateProjectionMatrix();
+
+      const worldAfter = screenToWorld(mid.x, mid.y);
+      camera.position.add(worldBefore.sub(worldAfter));
+    }
+  }, { passive: false });
+
+  // Wheel zoom anchored at cursor
+  renderer.domElement.addEventListener('wheel', (e) => {
+    const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+    const worldBefore = screenToWorld(e.clientX, e.clientY);
+    camera.zoom = THREE.MathUtils.clamp(camera.zoom * zoomFactor, 0.5, 3.5);
+    camera.updateProjectionMatrix();
+    const worldAfter = screenToWorld(e.clientX, e.clientY);
+    camera.position.add(worldBefore.sub(worldAfter));
+  }, { passive: true });
+
+  // Resize
+  window.addEventListener('resize', () => {
+    const w = window.innerWidth, h = window.innerHeight;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+  });
+
+  // Animate
+  function animate() {
+    requestAnimationFrame(animate);
+    cube.rotation.x += 0.01;
+    cube.rotation.y += 0.013;
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
 })();
 </script>
 </body>
