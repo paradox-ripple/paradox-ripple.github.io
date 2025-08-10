@@ -1,171 +1,417 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>1111</title></title>
-  <style>
-    body { margin: 0; overflow: hidden; background: #000; }
-    #videoElement {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      object-fit: cover;
-      z-index: -1;
-      display: none;
-    }
-    #fallback {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background-color: #202030;
-      z-index: -1;
-      display: none;
-    }
-    #startBtn {
-      position: absolute;
-      top: 10px; left: 10px;
-      padding: 8px 14px;
-      font-size: 14px;
-      background: rgba(255,255,255,0.8);
-      border: none;
-      cursor: pointer;
-      z-index: 10;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR PCB Board Viewer</title>
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/aframe-environment-component@1.3.0/dist/aframe-environment-component.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+        
+        #permission-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #1a2a6c);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            color: white;
+            text-align: center;
+            padding: 20px;
+            transition: opacity 0.5s ease;
+        }
+        
+        .permission-content {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 30px;
+            border-radius: 20px;
+            max-width: 600px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            color: #4facfe;
+        }
+        
+        p {
+            font-size: 1.2rem;
+            margin-bottom: 25px;
+            line-height: 1.6;
+        }
+        
+        .permission-buttons {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .btn {
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .btn-allow {
+            background: linear-gradient(to right, #4facfe, #00f2fe);
+            color: white;
+        }
+        
+        .btn-deny {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        .btn:active {
+            transform: translateY(1px);
+        }
+        
+        .icon {
+            font-size: 1.5rem;
+        }
+        
+        #scene-container {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .controls-panel {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px 25px;
+            border-radius: 50px;
+            display: flex;
+            gap: 15px;
+            backdrop-filter: blur(10px);
+            z-index: 10;
+        }
+        
+        .control-btn {
+            background: rgba(255, 255, 255, 0.15);
+            border: none;
+            color: white;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .control-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
+        }
+        
+        .hint {
+            position: absolute;
+            top: 20px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            color: white;
+            font-size: 1.1rem;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            z-index: 5;
+        }
+        
+        .fallback-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23d7ccc8"/><path d="M0 0L100 100M100 0L0 100" stroke="%23bcaaa4" stroke-width="1"/></svg>');
+            background-size: 200px 200px;
+            z-index: -1;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+    </style>
 </head>
 <body>
-  <video id="videoElement" autoplay playsinline></video>
-  <div id="fallback"></div>
-  <button id="startBtn">Start Camera</button>
+    <!-- Camera Permission Screen -->
+    <div id="permission-screen">
+        <div class="permission-content">
+            <h1>PCB Board AR Viewer</h1>
+            <p>Experience our PCB board in augmented reality! For the best experience, we need access to your camera to overlay the 3D model on your environment.</p>
+            <p>If you prefer not to use your camera, we'll display the model on a simulated background.</p>
+            <div class="permission-buttons">
+                <button id="allow-camera" class="btn btn-allow pulse">
+                    <span class="icon">📷</span> Allow Camera Access
+                </button>
+                <button id="deny-camera" class="btn btn-deny">
+                    <span class="icon">🚫</span> Continue Without Camera
+                </button>
+            </div>
+        </div>
+    </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/OBJLoader.js"></script>
-  <script>
-    let scene, camera, renderer, controls;
-    let model, bgPlane, textMesh;
-    const video = document.getElementById('videoElement');
-    const fallback = document.getElementById('fallback');
-    const startBtn = document.getElementById('startBtn');
+    <!-- Fallback background for when camera is not used -->
+    <div class="fallback-bg"></div>
+    
+    <!-- A-Frame Scene Container -->
+    <div id="scene-container"></div>
+    
+    <!-- Controls Panel -->
+    <div class="controls-panel">
+        <button class="control-btn" id="zoom-in">+</button>
+        <button class="control-btn" id="zoom-out">-</button>
+        <button class="control-btn" id="rotate-left">↺</button>
+        <button class="control-btn" id="rotate-right">↻</button>
+        <button class="control-btn" id="reset-view">↻</button>
+    </div>
+    
+    <!-- Hint Message -->
+    <div class="hint" id="hint">Use the controls below to interact with the PCB model</div>
 
-    init();
-    animate();
-
-    function init() {
-      scene = new THREE.Scene();
-
-      camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 100);
-      camera.position.z = 3;
-
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      document.body.appendChild(renderer.domElement);
-
-      // Background plane for no-camera case
-      bgPlane = new THREE.Mesh(
-        new THREE.PlaneGeometry(50, 50),
-        new THREE.MeshBasicMaterial({ color: 0x202030 })
-      );
-      bgPlane.position.z = -5;
-      scene.add(bgPlane);
-      bgPlane.visible = false;
-
-      // Load OBJ model
-      const objLoader = new THREE.OBJLoader();
-      objLoader.load(
-        'bulb.obj', // Place your .obj file in the same folder
-        function (object) {
-          object.scale.set(0.5, 0.5, 0.5); // Adjust size
-          object.position.set(0, 0, 0);
-          model = object;
-          scene.add(model);
-        },
-        function (xhr) {
-          console.log(`Loading OBJ: ${(xhr.loaded / xhr.total * 100).toFixed(1)}%`);
-        },
-        function (error) {
-          console.error('Error loading OBJ:', error);
-        }
-      );
-
-      // Text label
-      const loader = new THREE.FontLoader();
-      loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', function (font) {
-        const textGeo = new THREE.TextGeometry('Hello 3D', {
-          font: font,
-          size: 0.2,
-          height: 0.02,
+    <script>
+        // Wait for DOM to load
+        document.addEventListener('DOMContentLoaded', function() {
+            const permissionScreen = document.getElementById('permission-screen');
+            const sceneContainer = document.getElementById('scene-container');
+            const allowBtn = document.getElementById('allow-camera');
+            const denyBtn = document.getElementById('deny-camera');
+            const hint = document.getElementById('hint');
+            
+            let arEnabled = false;
+            let modelScale = 0.15;
+            let rotationY = 0;
+            
+            // Create the A-Frame scene
+            function createScene(useAR = false) {
+                const scene = document.createElement('a-scene');
+                scene.setAttribute('embedded', '');
+                
+                if (useAR) {
+                    // AR.js configuration
+                    scene.setAttribute('arjs', 'sourceType: webcam; debugUIEnabled: false;');
+                    scene.setAttribute('renderer', 'antialias: true; alpha: true');
+                    
+                    // Marker for AR
+                    const marker = document.createElement('a-marker');
+                    marker.setAttribute('preset', 'hiro');
+                    marker.setAttribute('id', 'marker');
+                    
+                    // Create PCB model entity
+                    const model = createPCBModel();
+                    marker.appendChild(model);
+                    scene.appendChild(marker);
+                    
+                    hint.textContent = "Point your camera at the Hiro marker to view the PCB board";
+                } else {
+                    // Static scene with wooden background
+                    scene.setAttribute('environment', 'preset: forest; dressingAmount: 500; ground: hills;');
+                    
+                    // Create PCB model entity
+                    const model = createPCBModel();
+                    model.setAttribute('position', '0 0.5 -1.5');
+                    scene.appendChild(model);
+                    
+                    // Add orbit controls for the camera
+                    const camera = document.createElement('a-entity');
+                    camera.setAttribute('camera', '');
+                    camera.setAttribute('orbit-controls', 
+                        'target: 0 0.5 0; enableDamping: true; dampingFactor: 0.25; autoRotate: false;');
+                    camera.setAttribute('position', '0 1.5 0');
+                    scene.appendChild(camera);
+                    
+                    hint.textContent = "Drag to rotate the view, scroll to zoom";
+                }
+                
+                // Add lighting
+                const ambientLight = document.createElement('a-entity');
+                ambientLight.setAttribute('light', 'type: ambient; color: #FFF; intensity: 0.6');
+                scene.appendChild(ambientLight);
+                
+                const directionalLight = document.createElement('a-entity');
+                directionalLight.setAttribute('light', 'type: directional; color: #FFF; intensity: 0.8; position: -1 1 0.5');
+                scene.appendChild(directionalLight);
+                
+                sceneContainer.appendChild(scene);
+                
+                // Setup controls
+                setupControls();
+            }
+            
+            // Create the PCB model
+            function createPCBModel() {
+                const model = document.createElement('a-entity');
+                
+                // Create a realistic PCB board using primitives
+                // Main board
+                const board = document.createElement('a-box');
+                board.setAttribute('width', '1.2');
+                board.setAttribute('height', '0.02');
+                board.setAttribute('depth', '0.8');
+                board.setAttribute('color', '#2a5c39');
+                board.setAttribute('position', '0 0.01 0');
+                model.appendChild(board);
+                
+                // Components
+                const components = [
+                    { type: 'cylinder', color: '#1a1a1a', radius: 0.1, height: 0.1, pos: '-0.4 0.06 0.2' },
+                    { type: 'cylinder', color: '#1a1a1a', radius: 0.1, height: 0.1, pos: '0.4 0.06 -0.2' },
+                    { type: 'box', color: '#333', width: 0.2, height: 0.05, depth: 0.3, pos: '0.3 0.06 0.3' },
+                    { type: 'box', color: '#222', width: 0.15, height: 0.08, depth: 0.15, pos: '-0.3 0.06 -0.3' },
+                    { type: 'cylinder', color: '#444', radius: 0.05, height: 0.15, pos: '0 0.06 0' },
+                    { type: 'cylinder', color: '#555', radius: 0.03, height: 0.2, pos: '0.2 0.1 -0.1' },
+                    { type: 'box', color: '#c00', width: 0.1, height: 0.04, depth: 0.1, pos: '-0.1 0.06 0.25' },
+                    { type: 'box', color: '#00c', width: 0.25, height: 0.03, depth: 0.15, pos: '0.1 0.06 -0.25' }
+                ];
+                
+                components.forEach(comp => {
+                    const element = document.createElement(`a-${comp.type}`);
+                    element.setAttribute('color', comp.color);
+                    
+                    if (comp.type === 'cylinder') {
+                        element.setAttribute('radius', comp.radius);
+                        element.setAttribute('height', comp.height);
+                    } else {
+                        element.setAttribute('width', comp.width);
+                        element.setAttribute('height', comp.height);
+                        element.setAttribute('depth', comp.depth);
+                    }
+                    
+                    element.setAttribute('position', comp.pos);
+                    model.appendChild(element);
+                });
+                
+                // Circuit traces
+                for (let i = 0; i < 20; i++) {
+                    const trace = document.createElement('a-entity');
+                    trace.setAttribute('position', `${(Math.random() - 0.5) * 1.0} 0.02 ${(Math.random() - 0.5) * 0.6}`);
+                    trace.setAttribute('rotation', `0 ${Math.random() * 360} 0`);
+                    
+                    const line = document.createElement('a-box');
+                    line.setAttribute('width', Math.random() * 0.3 + 0.1);
+                    line.setAttribute('height', 0.005);
+                    line.setAttribute('depth', 0.01);
+                    line.setAttribute('color', '#ffd700');
+                    trace.appendChild(line);
+                    
+                    model.appendChild(trace);
+                }
+                
+                model.setAttribute('scale', `${modelScale} ${modelScale} ${modelScale}`);
+                model.setAttribute('rotation', `0 ${rotationY} 0`);
+                model.id = 'pcb-model';
+                
+                return model;
+            }
+            
+            // Setup control buttons
+            function setupControls() {
+                document.getElementById('zoom-in').addEventListener('click', () => {
+                    modelScale = Math.min(modelScale + 0.02, 0.3);
+                    updateModel();
+                });
+                
+                document.getElementById('zoom-out').addEventListener('click', () => {
+                    modelScale = Math.max(modelScale - 0.02, 0.05);
+                    updateModel();
+                });
+                
+                document.getElementById('rotate-left').addEventListener('click', () => {
+                    rotationY -= 15;
+                    updateModel();
+                });
+                
+                document.getElementById('rotate-right').addEventListener('click', () => {
+                    rotationY += 15;
+                    updateModel();
+                });
+                
+                document.getElementById('reset-view').addEventListener('click', () => {
+                    modelScale = 0.15;
+                    rotationY = 0;
+                    updateModel();
+                    
+                    // Reset camera position in non-AR mode
+                    if (!arEnabled) {
+                        const camera = document.querySelector('[orbit-controls]');
+                        if (camera) {
+                            camera.setAttribute('orbit-controls', 'target: 0 0.5 0; theta: 0; phi: 60; radius: 2');
+                        }
+                    }
+                });
+            }
+            
+            // Update model properties
+            function updateModel() {
+                const model = document.getElementById('pcb-model');
+                if (model) {
+                    model.setAttribute('scale', `${modelScale} ${modelScale} ${modelScale}`);
+                    model.setAttribute('rotation', `0 ${rotationY} 0`);
+                }
+            }
+            
+            // Event listeners for permission buttons
+            allowBtn.addEventListener('click', function() {
+                permissionScreen.style.opacity = '0';
+                setTimeout(() => {
+                    permissionScreen.style.display = 'none';
+                    arEnabled = true;
+                    createScene(true);
+                }, 500);
+            });
+            
+            denyBtn.addEventListener('click', function() {
+                permissionScreen.style.opacity = '0';
+                setTimeout(() => {
+                    permissionScreen.style.display = 'none';
+                    arEnabled = false;
+                    createScene(false);
+                }, 500);
+            });
         });
-        const textMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        textMesh = new THREE.Mesh(textGeo, textMat);
-        textMesh.position.set(-0.5, -1, 0);
-        scene.add(textMesh);
-      });
-
-      // Controls
-      controls = new THREE.OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true;
-      controls.dampingFactor = 0.05;
-      controls.enableZoom = true;
-      controls.zoomSpeed = 1.0;
-
-      // Touch gesture support (keep zoom position after release)
-      let touchDistance = 0;
-      renderer.domElement.addEventListener('touchstart', (e) => {
-        if (e.touches.length === 2) {
-          touchDistance = getTouchDistance(e.touches);
-        }
-      });
-      renderer.domElement.addEventListener('touchmove', (e) => {
-        if (e.touches.length === 2) {
-          const newDistance = getTouchDistance(e.touches);
-          const delta = newDistance - touchDistance;
-          camera.position.addScaledVector(camera.getWorldDirection(new THREE.Vector3()), -delta * 0.005);
-          touchDistance = newDistance;
-        }
-      });
-
-      startBtn.addEventListener('click', startCamera);
-
-      window.addEventListener('resize', onWindowResize);
-    }
-
-    function getTouchDistance(touches) {
-      const dx = touches[0].pageX - touches[1].pageX;
-      const dy = touches[0].pageY - touches[1].pageY;
-      return Math.sqrt(dx * dx + dy * dy);
-    }
-
-    async function startCamera() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-        video.srcObject = stream;
-        video.style.display = 'block';
-        fallback.style.display = 'none';
-        bgPlane.visible = false;
-        startBtn.style.display = 'none';
-      } catch (err) {
-        console.warn('Camera not available:', err);
-        fallback.style.display = 'block';
-        bgPlane.visible = true;
-      }
-    }
-
-    function onWindowResize() {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    }
-
-    function animate() {
-      requestAnimationFrame(animate);
-      controls.update();
-      renderer.render(scene, camera);
-    }
-
-    // Start with fallback background visible
-    bgPlane.visible = true;
-    fallback.style.display = 'block';
-  </script>
+    </script>
 </body>
 </html>
