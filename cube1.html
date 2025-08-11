@@ -1,78 +1,110 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>3D Bulb Viewer</title>
-<style>
-  body { margin: 0; overflow: hidden; background: #000; }
-  canvas { display: block; }
-</style>
-<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/loaders/OBJLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AR PCB Viewer (.OBJ)</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      height: 100%;
+    }
+    #bgVideo, #bgImage {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: -1;
+    }
+    canvas { display: block; }
+  </style>
 </head>
 <body>
-<script>
-let scene, camera, renderer, controls;
+  <!-- Camera background -->
+  <video id="bgVideo" autoplay playsinline muted></video>
+  <!-- Fallback wooden background -->
+  <img id="bgImage" src="wood_texture.jpg" alt="Background" style="display:none;"/>
 
-init();
-loadBulb();
-animate();
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/OBJLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/MTLLoader.js"></script>
 
-function init() {
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x000000);
+  <script>
+    const video = document.getElementById("bgVideo");
+    const bgImage = document.getElementById("bgImage");
 
-    camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.z = 3;
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => {
+        video.srcObject = stream;
+        video.style.display = "block";
+        bgImage.style.display = "none";
+        init3D();
+      })
+      .catch(err => {
+        console.warn("Camera access denied:", err);
+        video.style.display = "none";
+        bgImage.style.display = "block";
+        init3D();
+      });
 
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
+    function init3D() {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+      const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
 
-    controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.enablePan = false; // prevent drifting
-    controls.minDistance = 1;
-    controls.maxDistance = 10;
+      // Lighting
+      scene.add(new THREE.AmbientLight(0xffffff, 1));
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(5, 5, 5);
+      scene.add(directionalLight);
 
-    const light = new THREE.DirectionalLight(0xffffff, 1);
-    light.position.set(5, 5, 5);
-    scene.add(light);
+      // Controls
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.minDistance = 1;
+      controls.maxDistance = 10;
+      camera.position.set(0, 0, 5);
 
-    const ambient = new THREE.AmbientLight(0xffffff, 0.5);
-    scene.add(ambient);
+      // Load OBJ + MTL
+      const mtlLoader = new THREE.MTLLoader();
+      mtlLoader.load("pcb_model.mtl", (materials) => {
+        materials.preload();
+        const objLoader = new THREE.OBJLoader();
+        objLoader.setMaterials(materials);
+        objLoader.load("pcb_model.obj", (object) => {
+          object.scale.set(1, 1, 1);
+          scene.add(object);
+        });
+      }, undefined, (err) => {
+        console.warn("No MTL found, loading OBJ without materials.");
+        const objLoader = new THREE.OBJLoader();
+        objLoader.load("pcb_model.obj", (object) => {
+          object.scale.set(1, 1, 1);
+          scene.add(object);
+        });
+      });
 
-    window.addEventListener('resize', () => {
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+      }
+      animate();
+
+      window.addEventListener("resize", () => {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-}
-
-function loadBulb() {
-    const loader = new THREE.OBJLoader();
-    loader.load(
-        'bulb.obj', // must be in same folder as cube.html
-        function (object) {
-            object.scale.set(0.5, 0.5, 0.5);
-            scene.add(object);
-        },
-        function (xhr) {
-            console.log((xhr.loaded / xhr.total * 100) + '% loaded');
-        },
-        function (error) {
-            console.error('Error loading OBJ:', error);
-        }
-    );
-}
-
-function animate() {
-    requestAnimationFrame(animate);
-    controls.update();
-    renderer.render(scene, camera);
-}
-</script>
+      });
+    }
+  </script>
 </body>
 </html>
