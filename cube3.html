@@ -9,10 +9,10 @@
       margin: 0;
       padding: 0;
       overflow: hidden;
-      background: #ddd;
       height: 100%;
+      background: #cbb994 url('https://www.transparenttextures.com/patterns/wood-pattern.png') repeat;
     }
-    #bgVideo, #bgImage {
+    #video-bg {
       position: fixed;
       top: 0;
       left: 0;
@@ -27,82 +27,77 @@
   </style>
 </head>
 <body>
-  <!-- Camera background -->
-  <video id="bgVideo" autoplay playsinline muted></video>
-  <!-- Fallback wooden background -->
-  <img id="bgImage" src="wood_texture.jpg" alt="Background" style="display:none;"/>
+  <video id="video-bg" autoplay muted playsinline></video>
 
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/loaders/GLTFLoader.js"></script>
+  <!-- Three.js and OBJLoader -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/loaders/OBJLoader.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.156.1/examples/js/controls/OrbitControls.js"></script>
 
   <script>
-    const video = document.getElementById("bgVideo");
-    const bgImage = document.getElementById("bgImage");
+    const video = document.getElementById('video-bg');
 
-    // Ask for camera access
+    // Try to access the camera
     navigator.mediaDevices.getUserMedia({ video: true })
       .then(stream => {
         video.srcObject = stream;
-        video.style.display = "block";
-        bgImage.style.display = "none";
-        init3D();
       })
-      .catch(err => {
-        console.warn("Camera access denied:", err);
-        video.style.display = "none";
-        bgImage.style.display = "block";
-        init3D();
+      .catch(() => {
+        // If denied, remove video element so wood texture shows
+        video.remove();
       });
 
-    function init3D() {
-      const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-      const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      document.body.appendChild(renderer.domElement);
+    // Three.js setup
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
 
-      // Lighting
-      const ambientLight = new THREE.AmbientLight(0xffffff, 1);
-      scene.add(ambientLight);
-      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      directionalLight.position.set(5, 5, 5);
-      scene.add(directionalLight);
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1);
+    scene.add(ambientLight);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    directionalLight.position.set(0, 1, 1).normalize();
+    scene.add(directionalLight);
 
-      // Controls
-      const controls = new THREE.OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true;
-      controls.dampingFactor = 0.05;
-      controls.screenSpacePanning = false;
-      controls.minDistance = 1;
-      controls.maxDistance = 10;
+    // Controls
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableZoom = true;
+    controls.enableRotate = true;
+    controls.enablePan = false;
 
-      camera.position.set(0, 0, 5);
-
-      // Load PCB 3D model
-      const loader = new THREE.GLTFLoader();
-      loader.load("pcb_model.glb", (gltf) => {
-        const model = gltf.scene;
-        model.scale.set(1, 1, 1);
-        scene.add(model);
-      }, undefined, (error) => {
-        console.error("Error loading model:", error);
-      });
-
-      // Animate
-      function animate() {
-        requestAnimationFrame(animate);
-        controls.update();
-        renderer.render(scene, camera);
+    // Load OBJ model
+    const loader = new THREE.OBJLoader();
+    loader.load(
+      'pcb_model.obj', // Your .obj file path
+      obj => {
+        obj.scale.set(0.5, 0.5, 0.5);
+        scene.add(obj);
+      },
+      xhr => {
+        console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+      },
+      error => {
+        console.error('Error loading model:', error);
       }
-      animate();
+    );
 
-      window.addEventListener("resize", () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-      });
+    camera.position.z = 3;
+
+    // Render loop
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
     }
+    animate();
+
+    // Handle resize
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
   </script>
 </body>
 </html>
